@@ -11,6 +11,7 @@ private:
     int cellSize;
     float moveTimer;
     float moveInterval;   // controls difficulty: lower = enemy moves more often
+    bool frozen;          // true during the short grace period at the start of a round
 
 public:
     Enemy(int startRow, int startCol, int cellSize, float moveInterval = 0.3f);
@@ -22,6 +23,9 @@ public:
 
     int getRow() const { return row; }
     int getCol() const { return col; }
+
+    void setFrozen(bool value) { frozen = value; }
+    void setStepTime(float seconds) { moveInterval = seconds; }
 
     void reset(int startRow, int startCol);
     void render() const;

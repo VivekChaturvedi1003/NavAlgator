@@ -103,6 +103,12 @@ public:
         return data[count];
     }
 
+    // Empties the stack (used when a round restarts so Undo can't jump back
+    // to positions from the previous round).
+    void clear() {
+        count = 0;
+    }
+
     bool isEmpty() const {
         return count == 0;
     }
