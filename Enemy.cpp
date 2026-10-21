@@ -1,5 +1,6 @@
 #include "Enemy.h"
 #include "DataStructures.h"
+#include "Theme.h"
 
 Enemy::Enemy(int startRow, int startCol, int cellSize, float moveInterval) {
     row = startRow;
@@ -7,6 +8,7 @@ Enemy::Enemy(int startRow, int startCol, int cellSize, float moveInterval) {
     this->cellSize = cellSize;
     this->moveInterval = moveInterval;
     moveTimer = 0.0f;
+    frozen = false;
 }
 
 void Enemy::reset(int startRow, int startCol) {
@@ -104,6 +106,8 @@ static bool bfsNextStep(const Grid& grid, int startRow, int startCol,
 }
 
 void Enemy::update(const Grid& grid, const Player& player, float deltaTime) {
+    if (frozen) return;                     // grace period: the enemy has not woken up yet
+
     moveTimer += deltaTime;
     if (moveTimer < moveInterval) return;   // difficulty control: don't recalc every single frame
     moveTimer = 0.0f;
@@ -119,7 +123,23 @@ void Enemy::update(const Grid& grid, const Player& player, float deltaTime) {
 }
 
 void Enemy::render() const {
-    int x = col * cellSize + cellSize / 2;
-    int y = row * cellSize + cellSize / 2;
-    DrawCircle(x, y, cellSize / 2.5f, RED);
+    float cx = col * cellSize + cellSize / 2.0f;
+    float cy = row * cellSize + cellSize / 2.0f;
+    float r  = cellSize * 0.38f;
+
+    // faded while frozen so the player can see it has not woken up yet
+    Color body = frozen ? Fade(Theme::EnemyBody, 0.45f) : Theme::EnemyBody;
+
+    DrawCircleV(Vector2{cx + 2.0f, cy + 4.0f}, r, Fade(BLACK, 0.35f));   // shadow
+    DrawCircleV(Vector2{cx, cy}, r, body);
+    DrawCircleLines((int)cx, (int)cy, r, Fade(BLACK, 0.6f));
+
+    // eyes
+    float eyeR = r * 0.26f;
+    Vector2 leftEye  = {cx - r * 0.38f, cy - r * 0.15f};
+    Vector2 rightEye = {cx + r * 0.38f, cy - r * 0.15f};
+    DrawCircleV(leftEye, eyeR, WHITE);
+    DrawCircleV(rightEye, eyeR, WHITE);
+    DrawCircleV(leftEye, eyeR * 0.5f, BLACK);
+    DrawCircleV(rightEye, eyeR * 0.5f, BLACK);
 }
