@@ -25,9 +25,9 @@ void Player::handleInput(const Grid& grid, float deltaTime) {
         int newRow = row + dRow;
         int newCol = col + dCol;
 
-        // compute the new position first, only commit it if the cell is walkable
+       
         if (grid.isWalkable(newRow, newCol)) {
-            moveHistory.push({row, col});   // save current position for Undo
+            moveHistory.push({row, col});  
             row = newRow;
             col = newCol;
         }
