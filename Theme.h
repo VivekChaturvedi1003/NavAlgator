@@ -4,10 +4,7 @@
 #include "raylib.h"
 #include <cmath>
 
-// ---------------------------------------------------------------
-// All colours live here, so the whole look of the game can be
-// changed in one place.
-// ---------------------------------------------------------------
+
 namespace Theme {
 
     inline const Color Background = {14, 16, 30, 255};
@@ -29,8 +26,7 @@ namespace Theme {
     inline const Color Gold       = {255, 205, 80, 255};
     inline const Color Danger     = {255, 90, 90, 255};
 
-    // Converts hue (0-360), saturation (0-1) and value (0-1) into an RGB colour.
-    // Used to give every wall block its own colour.
+   
     inline Color hsv(float hue, float saturation, float value) {
         hue = std::fmod(hue, 360.0f);
         if (hue < 0.0f) hue += 360.0f;
