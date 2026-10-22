@@ -28,26 +28,25 @@ private:
 
     float roundTimer;
     float roundTimeLimit;
-    float graceTimer;         // enemy stays frozen until this reaches 0
+    float graceTimer;       
     int startRow, startCol;
     const char* endMessage;
 
 public:
     GameEngine(int cellSize = 40);
 
-    void run();   // opens the (resizable) window and runs the menu + game loop
-
+    void run();  
 private:
     // game flow
     void update(float deltaTime);
     void updateMenu();
-    void startGame();                 // applies the chosen difficulty, builds a new maze
-    void setupRound();                // new maze, exit, player and enemy placement
-    void respawnAfterHit();           // keep the maze, reposition both characters
+    void startGame();                 
+    void setupRound();               
+    void respawnAfterHit();           
     void placeEnemyFarFrom(int row, int col);
     void checkWinLose(bool swappedPlaces);
 
-    // drawing
+    
     void render() const;
     void drawMenu(int screenW, int screenH) const;
     void drawGame(int screenW, int screenH) const;
