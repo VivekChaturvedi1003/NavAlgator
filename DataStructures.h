@@ -1,11 +1,6 @@
 #ifndef DATASTRUCTURES_H
 #define DATASTRUCTURES_H
 
-// ---------------------------------------------------------------
-// Manually implemented Queue (used by BFS in Enemy.cpp)
-// Built on a dynamic array instead of std::queue, so the actual
-// enqueue/dequeue mechanics are visible and are what gets evaluated.
-// ---------------------------------------------------------------
 template <typename T>
 class ManualQueue {
 private:
@@ -61,10 +56,6 @@ public:
     }
 };
 
-// ---------------------------------------------------------------
-// Manually implemented Stack (used for the Undo feature)
-// Built on a dynamic array instead of std::stack.
-// ---------------------------------------------------------------
 template <typename T>
 class ManualStack {
 private:
@@ -103,8 +94,6 @@ public:
         return data[count];
     }
 
-    // Empties the stack (used when a round restarts so Undo can't jump back
-    // to positions from the previous round).
     void clear() {
         count = 0;
     }
