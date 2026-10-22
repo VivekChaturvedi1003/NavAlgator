@@ -14,18 +14,18 @@ private:
     int row, col;
     int lives;
     int cellSize;
-    float stepTime;      // seconds between steps while a key is held
-    float moveTimer;     // counts down; the player can step when it reaches 0
-    ManualStack<Position> moveHistory;   // Stack-based Undo feature
+    float stepTime;    
+    float moveTimer;    
+    ManualStack<Position> moveHistory;   
 
 public:
     static constexpr int MAX_LIVES = 3;
 
     Player(int startRow, int startCol, int cellSize, float stepTime = 0.13f);
 
-    // Reads the keyboard. Holding a key keeps moving, one cell every stepTime seconds.
+  
     void handleInput(const Grid& grid, float deltaTime);
-    void undo();                         // pops last position off the stack
+    void undo();                         
 
     int getRow() const { return row; }
     int getCol() const { return col; }
@@ -33,7 +33,7 @@ public:
 
     void loseLife() { lives--; }
     void resetLives() { lives = MAX_LIVES; }
-    void reset(int startRow, int startCol);   // new position, undo history cleared
+    void reset(int startRow, int startCol);   
 
     void render() const;
 };
