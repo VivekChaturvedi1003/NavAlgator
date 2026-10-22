@@ -1,5 +1,6 @@
 #include "Scoreboard.h"
 #include "raylib.h"
+#include "Theme.h"
 
 Scoreboard::Scoreboard(int initialCapacity) {
     capacity = initialCapacity;
@@ -42,10 +43,14 @@ void Scoreboard::sortDescending() {
 }
 
 void Scoreboard::render(int x, int y) const {
-    DrawText("SCOREBOARD", x, y, 20, BLACK);
+    DrawText("TOP SCORES", x, y, 22, Theme::Gold);
+    if (count == 0) {
+        DrawText("No scores yet - escape the maze!", x, y + 30, 16, Theme::TextDim);
+        return;
+    }
     int shown = count < 5 ? count : 5;   // show top 5
     for (int i = 0; i < shown; i++) {
-        std::string line = std::to_string(i + 1) + ". " + entries[i].name + " - " + std::to_string(entries[i].score);
-        DrawText(line.c_str(), x, y + 25 + i * 22, 18, DARKGRAY);
+        std::string line = std::to_string(i + 1) + ". " + entries[i].name + "  -  " + std::to_string(entries[i].score);
+        DrawText(line.c_str(), x, y + 30 + i * 24, 18, Theme::TextMain);
     }
 }
