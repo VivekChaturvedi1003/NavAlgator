@@ -4,16 +4,14 @@
 #include <cstdlib>
 #include <cmath>
 
-// Small helper used by the maze generator and the distance map.
+
 struct MazeCell {
     int r, c;
 };
 
-// ---------------------------------------------------------------
-// Memory management for the 2D array
-// ---------------------------------------------------------------
+
 void Grid::allocate() {
-    // Manually allocate the 2D array (not std::vector<vector<int>>)
+    
     cells = new int*[rows];
     for (int i = 0; i < rows; i++) {
         cells[i] = new int[cols];
@@ -49,9 +47,7 @@ void Grid::resize(int newRows, int newCols) {
     allocate();
 }
 
-// ---------------------------------------------------------------
-// Fixed test maze (kept for debugging)
-// ---------------------------------------------------------------
+
 void Grid::loadHardcodedMaze() {
     int layout[10][10] = {
         {1,1,1,1,1,1,1,1,1,1},
@@ -73,20 +69,7 @@ void Grid::loadHardcodedMaze() {
     }
 }
 
-// ---------------------------------------------------------------
-// Random maze generation: "recursive backtracker" (depth-first search)
-// ---------------------------------------------------------------
-// 1. Start with a grid that is solid wall.
-// 2. Begin at cell (1,1), mark it open and push it on a stack.
-// 3. Look for neighbours two cells away that are still solid. If there is
-//    one, knock down the wall between, move there and push it. If there is
-//    none, pop the stack (backtrack) and try again from the previous cell.
-// 4. Repeat until the stack is empty - every cell is now connected, so there
-//    are NO blocked or unreachable areas.
-// 5. A pure DFS maze has exactly one route between any two cells, which makes
-//    the chase boring (the enemy just follows you). So we then knock down a
-//    few extra walls to create loops you can run around.
-// ---------------------------------------------------------------
+
 void Grid::generateMaze(int extraOpeningsPercent) {
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
@@ -94,7 +77,7 @@ void Grid::generateMaze(int extraOpeningsPercent) {
         }
     }
 
-    ManualStack<MazeCell> stack;          // our own stack, not std::stack
+    ManualStack<MazeCell> stack;         
     cells[1][1] = PATH;
     stack.push({1, 1});
 
@@ -104,7 +87,7 @@ void Grid::generateMaze(int extraOpeningsPercent) {
     while (!stack.isEmpty()) {
         MazeCell cur = stack.pop();
 
-        // collect directions that lead to a still-solid cell two steps away
+       
         int options[4];
         int optionCount = 0;
         for (int d = 0; d < 4; d++) {
@@ -116,18 +99,18 @@ void Grid::generateMaze(int extraOpeningsPercent) {
         }
 
         if (optionCount > 0) {
-            stack.push(cur);                                  // come back here later
+            stack.push(cur);                                  
             int d = options[rand() % optionCount];
             int nr = cur.r + dr[d];
             int nc = cur.c + dc[d];
-            cells[cur.r + dr[d] / 2][cur.c + dc[d] / 2] = PATH;   // knock down the wall between
+            cells[cur.r + dr[d] / 2][cur.c + dc[d] / 2] = PATH;   
             cells[nr][nc] = PATH;
             stack.push({nr, nc});
         }
-        // else: dead end - we simply don't push it back, which is the backtrack
+       
     }
 
-    // Add loops: open walls that sit between two corridors.
+   
     for (int i = 1; i < rows - 1; i++) {
         for (int j = 1; j < cols - 1; j++) {
             if (cells[i][j] != WALL) continue;
@@ -144,10 +127,7 @@ void Grid::generateMaze(int extraOpeningsPercent) {
     }
 }
 
-// ---------------------------------------------------------------
-// BFS distance map: how many steps from the start to every other cell.
-// Used to place the exit far away and to keep the enemy far from the player.
-// ---------------------------------------------------------------
+
 int** Grid::distancesFrom(int startRow, int startCol) const {
     int** dist = new int*[rows];
     for (int i = 0; i < rows; i++) {
@@ -159,7 +139,7 @@ int** Grid::distancesFrom(int startRow, int startCol) const {
 
     if (!isWalkable(startRow, startCol)) return dist;
 
-    ManualQueue<MazeCell> queue;          // our own queue, not std::queue
+    ManualQueue<MazeCell> queue;         
     queue.push({startRow, startCol});
     dist[startRow][startCol] = 0;
 
@@ -205,11 +185,9 @@ void Grid::setCellType(int r, int c, int type) {
     cells[r][c] = type;
 }
 
-// ---------------------------------------------------------------
-// Rendering - colourful bevelled walls, checkered floor, glowing exit
-// ---------------------------------------------------------------
+
 void Grid::render() const {
-    // Solid base so tiny gaps (when the window is scaled) show floor, not background
+   
     DrawRectangle(0, 0, cols * cellSize, rows * cellSize, Theme::FloorB);
 
     float t = (float)GetTime();
@@ -222,7 +200,7 @@ void Grid::render() const {
             int type = cells[i][j];
 
             if (type == WALL) {
-                // every wall block gets its own hue; the hues drift slowly over time
+                
                 float hue = i * 9.0f + j * 7.0f + t * 12.0f;
                 Color face = Theme::hsv(hue, 0.55f, 0.85f);
                 Color top  = Theme::hsv(hue, 0.30f, 1.00f);
