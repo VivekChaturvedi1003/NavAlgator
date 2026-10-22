@@ -1,10 +1,6 @@
 #ifndef DIFFICULTY_H
 #define DIFFICULTY_H
 
-// ---------------------------------------------------------------
-// One row per difficulty. Change the numbers here to re-balance the
-// game - nothing else in the code needs to be touched.
-// ---------------------------------------------------------------
 struct DifficultySettings {
     const char* name;
     const char* enemySpeedLabel;
