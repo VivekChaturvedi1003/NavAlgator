@@ -16,15 +16,8 @@ void Enemy::reset(int startRow, int startCol) {
     col = startCol;
     moveTimer = 0.0f;
 }
-
-// ---------------------------------------------------------------
 // BFS Module
-// ---------------------------------------------------------------
-// Returns the very next step the enemy should take to move one cell
-// closer to the player, using BFS on the grid (unweighted, so BFS
-// guarantees the shortest path). Recalculated fresh every call -
-// this is what lets the enemy react to the player moving.
-// ---------------------------------------------------------------
+
 static bool bfsNextStep(const Grid& grid, int startRow, int startCol,
                          int targetRow, int targetCol, int& outRow, int& outCol) {
     int rows = grid.getRows();
@@ -75,7 +68,6 @@ static bool bfsNextStep(const Grid& grid, int startRow, int startCol,
 
     bool result = false;
     if (found) {
-        // Walk backward from target to start to find the first step taken.
         int r = targetRow, c = targetCol;
         int prevR = r, prevC = c;
         while (!(r == startRow && c == startCol)) {
@@ -90,8 +82,7 @@ static bool bfsNextStep(const Grid& grid, int startRow, int startCol,
         outCol = prevC;
         result = true;
     }
-    // If !found: no path exists (e.g. player fully walled off).
-    // Caller must handle this - the enemy simply won't move this tick.
+
 
     for (int i = 0; i < rows; i++) {
         delete[] visited[i];
@@ -106,10 +97,10 @@ static bool bfsNextStep(const Grid& grid, int startRow, int startCol,
 }
 
 void Enemy::update(const Grid& grid, const Player& player, float deltaTime) {
-    if (frozen) return;                     // grace period: the enemy has not woken up yet
+    if (frozen) return;                     
 
     moveTimer += deltaTime;
-    if (moveTimer < moveInterval) return;   // difficulty control: don't recalc every single frame
+    if (moveTimer < moveInterval) return;  
     moveTimer = 0.0f;
 
     int nextRow, nextCol;
@@ -119,7 +110,7 @@ void Enemy::update(const Grid& grid, const Player& player, float deltaTime) {
         row = nextRow;
         col = nextCol;
     }
-    // if no path found, enemy holds its position this tick - handled gracefully, no crash
+   
 }
 
 void Enemy::render() const {
@@ -127,14 +118,13 @@ void Enemy::render() const {
     float cy = row * cellSize + cellSize / 2.0f;
     float r  = cellSize * 0.38f;
 
-    // faded while frozen so the player can see it has not woken up yet
     Color body = frozen ? Fade(Theme::EnemyBody, 0.45f) : Theme::EnemyBody;
 
-    DrawCircleV(Vector2{cx + 2.0f, cy + 4.0f}, r, Fade(BLACK, 0.35f));   // shadow
+    DrawCircleV(Vector2{cx + 2.0f, cy + 4.0f}, r, Fade(BLACK, 0.35f));   
     DrawCircleV(Vector2{cx, cy}, r, body);
     DrawCircleLines((int)cx, (int)cy, r, Fade(BLACK, 0.6f));
 
-    // eyes
+  
     float eyeR = r * 0.26f;
     Vector2 leftEye  = {cx - r * 0.38f, cy - r * 0.15f};
     Vector2 rightEye = {cx + r * 0.38f, cy - r * 0.15f};
