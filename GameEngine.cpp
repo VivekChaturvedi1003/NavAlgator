@@ -7,10 +7,8 @@
 #include <cmath>
 #include <string>
 
-// ---------------------------------------------------------------
-// Fixed settings (per-difficulty numbers live in Difficulty.h)
-// ---------------------------------------------------------------
-static const float PLAYER_STEP_TIME = 0.13f;   // seconds per player step while a key is held
+
+static const float PLAYER_STEP_TIME = 0.13f;   
 static const int   HUD_HEIGHT       = 70;
 static const int   FOOTER_HEIGHT    = 36;
 static const int   MENU_ITEMS       = 3;
@@ -19,9 +17,7 @@ static const int   START_WINDOW_H   = 740;
 static const int   MIN_WINDOW_W     = 760;
 static const int   MIN_WINDOW_H     = 620;
 
-// ---------------------------------------------------------------
-// Small helpers that work on a BFS distance table (see Grid::distancesFrom)
-// ---------------------------------------------------------------
+
 static int largestDistance(int** dist, int rows, int cols) {
     int best = 0;
     for (int i = 0; i < rows; i++) {
@@ -32,7 +28,7 @@ static int largestDistance(int** dist, int rows, int cols) {
     return best;
 }
 
-// Picks a random PATH cell whose BFS distance is at least minDist.
+
 static bool pickRandomCell(const Grid& grid, int** dist, int minDist, int& outRow, int& outCol) {
     int rows = grid.getRows();
     int cols = grid.getCols();
@@ -61,9 +57,7 @@ static bool pickRandomCell(const Grid& grid, int** dist, int minDist, int& outRo
     return false;
 }
 
-// ---------------------------------------------------------------
-// Construction
-// ---------------------------------------------------------------
+
 GameEngine::GameEngine(int cellSize)
     : grid(getDifficulty(0).rows, getDifficulty(0).cols, cellSize),
       player(1, 1, cellSize, PLAYER_STEP_TIME),
@@ -85,13 +79,11 @@ GameEngine::GameEngine(int cellSize)
     srand((unsigned int)time(nullptr));
 }
 
-// ---------------------------------------------------------------
-// Round setup
-// ---------------------------------------------------------------
+
 void GameEngine::startGame() {
     const DifficultySettings& d = getDifficulty(difficultyIndex);
-    grid.resize(d.rows, d.cols);          // maze size depends on difficulty
-    enemy.setStepTime(d.enemyStepTime);   // so does the enemy's speed
+    grid.resize(d.rows, d.cols);         
+    enemy.setStepTime(d.enemyStepTime);   
     roundTimeLimit = d.timeLimit;
     player.resetLives();
     setupRound();
@@ -102,24 +94,24 @@ void GameEngine::setupRound() {
     int rows = grid.getRows();
     int cols = grid.getCols();
 
-    // 1. brand new random maze - always fully connected, so no blocked paths
+  
     grid.generateMaze(d.extraOpeningsPercent);
     startRow = 1;
     startCol = 1;
 
-    // 2. exit: a random cell among the farthest 15% from the player's start
+   
     int** dist = grid.distancesFrom(startRow, startCol);
     int maxDist = largestDistance(dist, rows, cols);
     int threshold = (maxDist * 85) / 100;
     if (threshold < 1) threshold = 1;
 
-    int exitRow = rows - 2;       // fallback, only used if nothing qualifies
+    int exitRow = rows - 2;     
     int exitCol = cols - 2;
     pickRandomCell(grid, dist, threshold, exitRow, exitCol);
     grid.setCellType(exitRow, exitCol, EXIT);
     Grid::freeDistances(dist, rows);
 
-    // 3. player at the start, enemy far away and frozen for a few seconds
+   
     player.reset(startRow, startCol);
     placeEnemyFarFrom(startRow, startCol);
     graceTimer = d.graceTime;
@@ -130,10 +122,7 @@ void GameEngine::setupRound() {
     state = PLAYING;
 }
 
-// ---------------------------------------------------------------
-// Fair spawning: uses BFS distances (not straight-line distance) so the
-// enemy is genuinely far away along the maze corridors.
-// ---------------------------------------------------------------
+
 void GameEngine::placeEnemyFarFrom(int fromRow, int fromCol) {
     const DifficultySettings& d = getDifficulty(difficultyIndex);
     int rows = grid.getRows();
@@ -142,15 +131,15 @@ void GameEngine::placeEnemyFarFrom(int fromRow, int fromCol) {
     int** dist = grid.distancesFrom(fromRow, fromCol);
     int maxDist = largestDistance(dist, rows, cols);
 
-    int minDist = maxDist / 2;                       // at least half of the longest route away
+    int minDist = maxDist / 2;                     
     if (minDist < d.minSpawnDistance) minDist = d.minSpawnDistance;
-    if (minDist > maxDist) minDist = maxDist;        // tiny mazes
+    if (minDist > maxDist) minDist = maxDist;     
     if (minDist < 1) minDist = 1;
 
     int enemyRow = fromRow;
     int enemyCol = fromCol;
     if (!pickRandomCell(grid, dist, minDist, enemyRow, enemyCol)) {
-        pickRandomCell(grid, dist, 1, enemyRow, enemyCol);   // last resort
+        pickRandomCell(grid, dist, 1, enemyRow, enemyCol); 
     }
     Grid::freeDistances(dist, rows);
 
@@ -165,13 +154,11 @@ void GameEngine::respawnAfterHit() {
     enemy.setFrozen(true);
 }
 
-// ---------------------------------------------------------------
-// Win / lose checks
-// ---------------------------------------------------------------
+
 void GameEngine::checkWinLose(bool swappedPlaces) {
     const DifficultySettings& d = getDifficulty(difficultyIndex);
 
-    // Win: player reached the exit
+    
     if (grid.getCellType(player.getRow(), player.getCol()) == EXIT) {
         state = WON;
         endMessage = "YOU ESCAPED!";
@@ -181,7 +168,7 @@ void GameEngine::checkWinLose(bool swappedPlaces) {
         return;
     }
 
-    // Caught: same cell, or the two walked straight through each other
+  
     bool sameCell = player.getRow() == enemy.getRow() && player.getCol() == enemy.getCol();
     if (graceTimer <= 0.0f && (sameCell || swappedPlaces)) {
         player.loseLife();
@@ -194,21 +181,19 @@ void GameEngine::checkWinLose(bool swappedPlaces) {
         return;
     }
 
-    // Timeout
+    
     if (roundTimer <= 0.0f) {
         state = LOST;
         endMessage = "TIME'S UP!";
     }
 }
 
-// ---------------------------------------------------------------
-// Updating
-// ---------------------------------------------------------------
+
 void GameEngine::updateMenu() {
     if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) menuSelection = (menuSelection + 1) % MENU_ITEMS;
     if (IsKeyPressed(KEY_UP)   || IsKeyPressed(KEY_W)) menuSelection = (menuSelection + MENU_ITEMS - 1) % MENU_ITEMS;
 
-    // difficulty can be changed with left/right on its row, or with 1/2/3 anywhere
+   
     if (menuSelection == 1) {
         if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D)) difficultyIndex = (difficultyIndex + 1) % 3;
         if (IsKeyPressed(KEY_LEFT)  || IsKeyPressed(KEY_A)) difficultyIndex = (difficultyIndex + 2) % 3;
@@ -234,8 +219,8 @@ void GameEngine::update(float deltaTime) {
         return;
     }
 
-    if (state != PLAYING) {                                   // WON or LOST screen
-        if (IsKeyPressed(KEY_R)) startGame();                 // same difficulty, new maze
+    if (state != PLAYING) {                                  
+        if (IsKeyPressed(KEY_R)) startGame();                
         if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_M)) state = MENU;
         return;
     }
@@ -245,7 +230,7 @@ void GameEngine::update(float deltaTime) {
         return;
     }
 
-    // enemy wakes up when the grace period ends
+   
     if (graceTimer > 0.0f) {
         graceTimer -= deltaTime;
         if (graceTimer <= 0.0f) enemy.setFrozen(false);
@@ -259,27 +244,25 @@ void GameEngine::update(float deltaTime) {
     player.handleInput(grid, deltaTime);
     enemy.update(grid, player, deltaTime);
 
-    // true if the two swapped cells in this frame (they would pass through each other)
+  
     bool swapped = player.getRow() == oldEnemyRow && player.getCol() == oldEnemyCol &&
                    enemy.getRow() == oldPlayerRow && enemy.getCol() == oldPlayerCol;
 
     checkWinLose(swapped);
 }
 
-// ---------------------------------------------------------------
-// Drawing
-// ---------------------------------------------------------------
+
 void GameEngine::drawHUD(int screenW) const {
     const DifficultySettings& d = getDifficulty(difficultyIndex);
     float t = (float)GetTime();
 
     DrawRectangle(0, 0, screenW, HUD_HEIGHT, Theme::Panel);
-    DrawRectangle(0, HUD_HEIGHT - 3, screenW, 3, Theme::hsv(t * 40.0f, 0.6f, 1.0f));   // colourful accent line
+    DrawRectangle(0, HUD_HEIGHT - 3, screenW, 3, Theme::hsv(t * 40.0f, 0.6f, 1.0f));   
 
     DrawText("NAVALGATOR", 20, 10, 30, Theme::Gold);
     DrawText(TextFormat("%s mode", d.name), 22, 44, 16, Theme::TextDim);
 
-    // lives: filled circles = lives left, outlines = lives lost
+  
     DrawText("LIVES", 238, 12, 16, Theme::TextDim);
     for (int i = 0; i < Player::MAX_LIVES; i++) {
         int cx = 250 + i * 34;
@@ -291,7 +274,7 @@ void GameEngine::drawHUD(int screenW) const {
         }
     }
 
-    // timer bar (turns red in the last quarter)
+  
     float remaining = roundTimer > 0.0f ? roundTimer : 0.0f;
     float fraction = remaining / roundTimeLimit;
     int barW = 240, barH = 16;
@@ -334,8 +317,7 @@ void GameEngine::drawEndOverlay(int screenW, int screenH) const {
 }
 
 void GameEngine::drawGame(int screenW, int screenH) const {
-    // The maze is drawn in "world" pixels and scaled to fit the window, so it
-    // always fills the available space - resize or maximise the window freely.
+    
     float worldW = (float)(grid.getCols() * grid.getCellSize());
     float worldH = (float)(grid.getRows() * grid.getCellSize());
     float areaW  = (float)screenW;
@@ -377,7 +359,7 @@ void GameEngine::drawMenu(int screenW, int screenH) const {
     const DifficultySettings& d = getDifficulty(difficultyIndex);
     float t = (float)GetTime();
 
-    // title - every letter has its own moving colour
+   
     const char* title = "NAVALGATOR";
     int titleSize = 68;
     int titleY = (int)(screenH * 0.10f);
@@ -433,7 +415,7 @@ void GameEngine::drawMenu(int screenW, int screenH) const {
         }
     }
 
-    // details of the selected difficulty
+    
     const char* info = TextFormat("Maze %d x %d    |    Enemy speed: %s    |    Time: %.0f s",
                                   d.cols, d.rows, d.enemySpeedLabel, d.timeLimit);
     int infoY = itemY + MENU_ITEMS * itemGap + 6;
@@ -461,19 +443,17 @@ void GameEngine::render() const {
     EndDrawing();
 }
 
-// ---------------------------------------------------------------
-// Main loop
-// ---------------------------------------------------------------
+
 void GameEngine::run() {
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE);       // gives the window a maximise button and resizable edges
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);       
     InitWindow(START_WINDOW_W, START_WINDOW_H, "NavAlgator - AI Maze Escape");
     SetWindowMinSize(MIN_WINDOW_W, MIN_WINDOW_H);
-    SetExitKey(KEY_NULL);                        // ESC now goes back to the menu instead of closing the game
+    SetExitKey(KEY_NULL);                        
     SetTargetFPS(60);
 
     while (!quitRequested && !WindowShouldClose()) {
         float deltaTime = GetFrameTime();
-        if (deltaTime > 0.05f) deltaTime = 0.05f;    // avoids a huge jump after dragging/resizing the window
+        if (deltaTime > 0.05f) deltaTime = 0.05f;   \
         update(deltaTime);
         render();
     }
