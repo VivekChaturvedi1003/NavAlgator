@@ -14,7 +14,6 @@ Scoreboard::~Scoreboard() {
 
 void Scoreboard::addScore(const std::string& name, int score) {
     if (count == capacity) {
-        // grow the array manually
         int newCapacity = capacity * 2;
         ScoreEntry* newEntries = new ScoreEntry[newCapacity];
         for (int i = 0; i < count; i++) newEntries[i] = entries[i];
@@ -26,10 +25,6 @@ void Scoreboard::addScore(const std::string& name, int score) {
     count++;
     sortDescending();
 }
-
-// Manual insertion sort - highest score first.
-// Chosen over std::sort because the point of this feature is to
-// demonstrate a sorting algorithm, not call a library function.
 void Scoreboard::sortDescending() {
     for (int i = 1; i < count; i++) {
         ScoreEntry key = entries[i];
@@ -48,7 +43,7 @@ void Scoreboard::render(int x, int y) const {
         DrawText("No scores yet - escape the maze!", x, y + 30, 16, Theme::TextDim);
         return;
     }
-    int shown = count < 5 ? count : 5;   // show top 5
+    int shown = count < 5 ? count : 5;   
     for (int i = 0; i < shown; i++) {
         std::string line = std::to_string(i + 1) + ". " + entries[i].name + "  -  " + std::to_string(entries[i].score);
         DrawText(line.c_str(), x, y + 30 + i * 24, 18, Theme::TextMain);

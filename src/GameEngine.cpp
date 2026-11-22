@@ -7,8 +7,7 @@
 #include <cmath>
 #include <string>
 
-
-static const float PLAYER_STEP_TIME = 0.13f;   
+static const float PLAYER_STEP_TIME = 0.13f;  
 static const int   HUD_HEIGHT       = 70;
 static const int   FOOTER_HEIGHT    = 36;
 static const int   MENU_ITEMS       = 3;
@@ -16,7 +15,6 @@ static const int   START_WINDOW_W   = 1100;
 static const int   START_WINDOW_H   = 740;
 static const int   MIN_WINDOW_W     = 760;
 static const int   MIN_WINDOW_H     = 620;
-
 
 static int largestDistance(int** dist, int rows, int cols) {
     int best = 0;
@@ -57,12 +55,13 @@ static bool pickRandomCell(const Grid& grid, int** dist, int minDist, int& outRo
     return false;
 }
 
-
-GameEngine::GameEngine(int cellSize)
+GameEngine::GameEngine(int cellSize, const char* databaseFile)
     : grid(getDifficulty(0).rows, getDifficulty(0).cols, cellSize),
       player(1, 1, cellSize, PLAYER_STEP_TIME),
       enemy(1, 1, cellSize, getDifficulty(0).enemyStepTime),
-      scoreboard()
+      bomb(cellSize, getDifficulty(0).bombInterval),
+      scoreboard(),
+      database(databaseFile)
 {
     this->cellSize = cellSize;
     state = MENU;
@@ -75,15 +74,30 @@ GameEngine::GameEngine(int cellSize)
     startRow = 1;
     startCol = 1;
     endMessage = "";
+    enteringName = false;
+    nameLength = 0;
+    nameBuffer[0] = '\0';
+    nameEntryDelay = 0.0f;
+    pendingScore = 0;
+    savedCount = 0;
 
     srand((unsigned int)time(nullptr));
+    loadSavedScores();
 }
 
+void GameEngine::loadSavedScores() {
+    DbScore rows[50];
+    int count = database.topScores(50, rows);
+    for (int i = 0; i < count; i++) {
+        scoreboard.addScore(rows[i].name + " (" + rows[i].difficulty + ")", rows[i].score);
+    }
+    savedCount = database.countScores();
+}
 
 void GameEngine::startGame() {
     const DifficultySettings& d = getDifficulty(difficultyIndex);
-    grid.resize(d.rows, d.cols);         
-    enemy.setStepTime(d.enemyStepTime);   
+    grid.resize(d.rows, d.cols);      
+    enemy.setStepTime(d.enemyStepTime);  
     roundTimeLimit = d.timeLimit;
     player.resetLives();
     setupRound();
@@ -93,35 +107,34 @@ void GameEngine::setupRound() {
     const DifficultySettings& d = getDifficulty(difficultyIndex);
     int rows = grid.getRows();
     int cols = grid.getCols();
-
-  
     grid.generateMaze(d.extraOpeningsPercent);
     startRow = 1;
     startCol = 1;
 
-   
+    grid.placeObstacles(d.obstacleCount, startRow, startCol);
+    grid.placeMud(d.mudPercent, startRow, startCol);
+    grid.placePowerUps(d.powerUpCount, startRow, startCol);
     int** dist = grid.distancesFrom(startRow, startCol);
     int maxDist = largestDistance(dist, rows, cols);
     int threshold = (maxDist * 85) / 100;
     if (threshold < 1) threshold = 1;
 
-    int exitRow = rows - 2;     
+    int exitRow = rows - 2;      
     int exitCol = cols - 2;
     pickRandomCell(grid, dist, threshold, exitRow, exitCol);
     grid.setCellType(exitRow, exitCol, EXIT);
     Grid::freeDistances(dist, rows);
-
-   
     player.reset(startRow, startCol);
     placeEnemyFarFrom(startRow, startCol);
     graceTimer = d.graceTime;
     enemy.setFrozen(true);
+    bomb.setInterval(d.bombInterval);
+    bomb.relocate(grid, startRow, startCol);
 
     roundTimer = roundTimeLimit;
     endMessage = "";
     state = PLAYING;
 }
-
 
 void GameEngine::placeEnemyFarFrom(int fromRow, int fromCol) {
     const DifficultySettings& d = getDifficulty(difficultyIndex);
@@ -131,15 +144,15 @@ void GameEngine::placeEnemyFarFrom(int fromRow, int fromCol) {
     int** dist = grid.distancesFrom(fromRow, fromCol);
     int maxDist = largestDistance(dist, rows, cols);
 
-    int minDist = maxDist / 2;                     
+    int minDist = maxDist / 2;                      
     if (minDist < d.minSpawnDistance) minDist = d.minSpawnDistance;
-    if (minDist > maxDist) minDist = maxDist;     
+    if (minDist > maxDist) minDist = maxDist;        
     if (minDist < 1) minDist = 1;
 
     int enemyRow = fromRow;
     int enemyCol = fromCol;
     if (!pickRandomCell(grid, dist, minDist, enemyRow, enemyCol)) {
-        pickRandomCell(grid, dist, 1, enemyRow, enemyCol); 
+        pickRandomCell(grid, dist, 1, enemyRow, enemyCol);  
     }
     Grid::freeDistances(dist, rows);
 
@@ -150,50 +163,103 @@ void GameEngine::respawnAfterHit() {
     const DifficultySettings& d = getDifficulty(difficultyIndex);
     player.reset(startRow, startCol);
     placeEnemyFarFrom(startRow, startCol);
+    bomb.relocate(grid, startRow, startCol);
     graceTimer = d.graceTime;
     enemy.setFrozen(true);
 }
 
-
 void GameEngine::checkWinLose(bool swappedPlaces) {
     const DifficultySettings& d = getDifficulty(difficultyIndex);
 
-    
     if (grid.getCellType(player.getRow(), player.getCol()) == EXIT) {
         state = WON;
         endMessage = "YOU ESCAPED!";
-        int score = ((int)(roundTimer * 10) + player.getLives() * 100) * d.scoreMultiplier;
-        std::string name = std::string("Player (") + d.name + ")";
-        scoreboard.addScore(name, score);
+        pendingScore = ((int)(roundTimer * 10) + player.getLives() * 100) * d.scoreMultiplier;
+        enteringName = true;          
+        nameLength = 0;
+        nameBuffer[0] = '\0';
+        nameEntryDelay = 0.4f;
         return;
     }
 
-  
+
     bool sameCell = player.getRow() == enemy.getRow() && player.getCol() == enemy.getCol();
-    if (graceTimer <= 0.0f && (sameCell || swappedPlaces)) {
+    bool caughtByEnemy = graceTimer <= 0.0f && (sameCell || swappedPlaces);
+    bool hitByBomb = bomb.isArmed() && bomb.getRow() == player.getRow() && bomb.getCol() == player.getCol();
+
+    if ((caughtByEnemy || hitByBomb) && !player.isImmune()) {
         player.loseLife();
         if (player.getLives() <= 0) {
             state = LOST;
-            endMessage = "CAUGHT!";
+            endMessage = (hitByBomb && !caughtByEnemy) ? "BOOM!" : "CAUGHT!";
         } else {
             respawnAfterHit();
         }
         return;
     }
 
-    
+  
     if (roundTimer <= 0.0f) {
         state = LOST;
         endMessage = "TIME'S UP!";
     }
 }
+void GameEngine::collectPowerUps() {
+    int r = player.getRow();
+    int c = player.getCol();
+    int type = grid.getCellType(r, c);
 
+    if (type == POWER_SPEED) {
+        player.activateSpeed();
+        grid.setCellType(r, c, PATH);         
+    } else if (type == POWER_SHIELD) {
+        player.activateShield();
+        grid.setCellType(r, c, PATH);
+    }
+}
+
+void GameEngine::updateNameEntry(float deltaTime) {
+    int typed = GetCharPressed();
+
+    if (nameEntryDelay > 0.0f) {                             
+        nameEntryDelay -= deltaTime;
+        while (typed > 0) typed = GetCharPressed();
+        return;
+    }
+
+    while (typed > 0) {
+        if (typed >= 32 && typed <= 126 && nameLength < MAX_NAME_LENGTH) {
+            nameBuffer[nameLength] = (char)typed;
+            nameLength++;
+            nameBuffer[nameLength] = '\0';
+        }
+        typed = GetCharPressed();
+    }
+
+    if (IsKeyPressed(KEY_BACKSPACE) && nameLength > 0) {
+        nameLength--;
+        nameBuffer[nameLength] = '\0';
+    }
+    if (IsKeyPressed(KEY_ENTER))  finishNameEntry(true);
+    if (IsKeyPressed(KEY_ESCAPE)) finishNameEntry(false);     
+}
+
+void GameEngine::finishNameEntry(bool save) {
+    enteringName = false;
+    if (!save) return;
+
+    const DifficultySettings& d = getDifficulty(difficultyIndex);
+    std::string name = (nameLength > 0) ? std::string(nameBuffer) : std::string("Player");
+
+    database.saveScore(name, pendingScore, d.name);                    
+    scoreboard.addScore(name + " (" + d.name + ")", pendingScore);      
+    savedCount = database.countScores();
+}
 
 void GameEngine::updateMenu() {
     if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) menuSelection = (menuSelection + 1) % MENU_ITEMS;
     if (IsKeyPressed(KEY_UP)   || IsKeyPressed(KEY_W)) menuSelection = (menuSelection + MENU_ITEMS - 1) % MENU_ITEMS;
 
-   
     if (menuSelection == 1) {
         if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D)) difficultyIndex = (difficultyIndex + 1) % 3;
         if (IsKeyPressed(KEY_LEFT)  || IsKeyPressed(KEY_A)) difficultyIndex = (difficultyIndex + 2) % 3;
@@ -219,8 +285,13 @@ void GameEngine::update(float deltaTime) {
         return;
     }
 
-    if (state != PLAYING) {                                  
-        if (IsKeyPressed(KEY_R)) startGame();                
+    if (state == WON && enteringName) {                       
+        updateNameEntry(deltaTime);
+        return;
+    }
+
+    if (state != PLAYING) {                               
+        if (IsKeyPressed(KEY_R)) startGame();                 
         if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_M)) state = MENU;
         return;
     }
@@ -230,7 +301,6 @@ void GameEngine::update(float deltaTime) {
         return;
     }
 
-   
     if (graceTimer > 0.0f) {
         graceTimer -= deltaTime;
         if (graceTimer <= 0.0f) enemy.setFrozen(false);
@@ -242,27 +312,26 @@ void GameEngine::update(float deltaTime) {
     int oldEnemyRow  = enemy.getRow(),  oldEnemyCol  = enemy.getCol();
 
     player.handleInput(grid, deltaTime);
+    collectPowerUps();
+    bomb.update(grid, player.getRow(), player.getCol(), deltaTime);
     enemy.update(grid, player, deltaTime);
 
-  
     bool swapped = player.getRow() == oldEnemyRow && player.getCol() == oldEnemyCol &&
                    enemy.getRow() == oldPlayerRow && enemy.getCol() == oldPlayerCol;
 
     checkWinLose(swapped);
 }
 
-
 void GameEngine::drawHUD(int screenW) const {
     const DifficultySettings& d = getDifficulty(difficultyIndex);
     float t = (float)GetTime();
 
     DrawRectangle(0, 0, screenW, HUD_HEIGHT, Theme::Panel);
-    DrawRectangle(0, HUD_HEIGHT - 3, screenW, 3, Theme::hsv(t * 40.0f, 0.6f, 1.0f));   
+    DrawRectangle(0, HUD_HEIGHT - 3, screenW, 3, Theme::hsv(t * 40.0f, 0.6f, 1.0f));  
 
-    DrawText("NAVALGATOR", 20, 10, 30, Theme::Gold);
+    DrawText("NAVAIGATOR", 20, 10, 30, Theme::Gold);
     DrawText(TextFormat("%s mode", d.name), 22, 44, 16, Theme::TextDim);
 
-  
     DrawText("LIVES", 238, 12, 16, Theme::TextDim);
     for (int i = 0; i < Player::MAX_LIVES; i++) {
         int cx = 250 + i * 34;
@@ -274,7 +343,13 @@ void GameEngine::drawHUD(int screenW) const {
         }
     }
 
-  
+    if (player.isSpeedBoosted()) {
+        DrawText(TextFormat("SPEED  %.1f", player.speedTimeLeft()), 352, 14, 18, Theme::PowerSpeed);
+    }
+    if (player.isImmune()) {
+        DrawText(TextFormat("SHIELD  %.1f", player.shieldTimeLeft()), 352, 40, 18, Theme::PowerShield);
+    }
+
     float remaining = roundTimer > 0.0f ? roundTimer : 0.0f;
     float fraction = remaining / roundTimeLimit;
     int barW = 240, barH = 16;
@@ -309,6 +384,27 @@ void GameEngine::drawEndOverlay(int screenW, int screenH) const {
     int titleW = MeasureText(endMessage, 38);
     DrawText(endMessage, px + (panelW - titleW) / 2, py + 22, 38, accent);
 
+    if (state == WON && enteringName) {
+        const char* scoreText = TextFormat("Score: %d", pendingScore);
+        DrawText(scoreText, px + (panelW - MeasureText(scoreText, 28)) / 2, py + 80, 28, Theme::Gold);
+        DrawText("Enter your name:", px + 60, py + 135, 20, Theme::TextDim);
+
+        int boxX = px + 60;
+        int boxY = py + 165;
+        int boxW = panelW - 120;
+        int boxH = 46;
+        DrawRectangle(boxX, boxY, boxW, boxH, Fade(WHITE, 0.10f));
+        DrawRectangleLines(boxX, boxY, boxW, boxH, Theme::Gold);
+        DrawText(nameBuffer, boxX + 12, boxY + 8, 28, Theme::TextMain);
+        if (((int)(GetTime() * 2.0)) % 2 == 0) {                    
+            DrawText("_", boxX + 12 + MeasureText(nameBuffer, 28), boxY + 8, 28, Theme::Gold);
+        }
+
+        const char* nameHint = "ENTER: save score     ESC: skip";
+        DrawText(nameHint, px + (panelW - MeasureText(nameHint, 18)) / 2, py + panelH - 38, 18, Theme::TextMain);
+        return;
+    }
+
     scoreboard.render(px + 40, py + 90);
 
     const char* hint = "R: play again     ESC: menu";
@@ -317,7 +413,6 @@ void GameEngine::drawEndOverlay(int screenW, int screenH) const {
 }
 
 void GameEngine::drawGame(int screenW, int screenH) const {
-    
     float worldW = (float)(grid.getCols() * grid.getCellSize());
     float worldH = (float)(grid.getRows() * grid.getCellSize());
     float areaW  = (float)screenW;
@@ -328,14 +423,15 @@ void GameEngine::drawGame(int screenW, int screenH) const {
     float zoom = zoomX < zoomY ? zoomX : zoomY;
 
     Camera2D camera = {
-        { (areaW - worldW * zoom) / 2.0f, HUD_HEIGHT + (areaH - worldH * zoom) / 2.0f },  // offset
-        { 0.0f, 0.0f },                                                                  // target
-        0.0f,                                                                            // rotation
-        zoom                                                                             // zoom
+        { (areaW - worldW * zoom) / 2.0f, HUD_HEIGHT + (areaH - worldH * zoom) / 2.0f },  
+        { 0.0f, 0.0f },                                                                  
+        0.0f,                                                                            
+        zoom                                                                             
     };
 
     BeginMode2D(camera);
     grid.render();
+    bomb.render();
     enemy.render();
     player.render();
     EndMode2D();
@@ -359,8 +455,7 @@ void GameEngine::drawMenu(int screenW, int screenH) const {
     const DifficultySettings& d = getDifficulty(difficultyIndex);
     float t = (float)GetTime();
 
-   
-    const char* title = "NAVALGATOR";
+    const char* title = "NAVAIGATOR";
     int titleSize = 68;
     int titleY = (int)(screenH * 0.10f);
     char letter[2] = {0, 0};
@@ -381,7 +476,6 @@ void GameEngine::drawMenu(int screenW, int screenH) const {
     const char* subtitle = "AI Maze Escape";
     DrawText(subtitle, (screenW - MeasureText(subtitle, 24)) / 2, titleY + titleSize + 8, 24, Theme::TextDim);
 
-    // a strip of coloured blocks as decoration
     int blocks = 24;
     int blockSize = 18;
     int stripW = blocks * (blockSize + 4);
@@ -392,7 +486,7 @@ void GameEngine::drawMenu(int screenW, int screenH) const {
                       Theme::hsv(k * 15.0f + t * 40.0f, 0.55f, 0.9f));
     }
 
-    // menu items
+
     int itemY = (int)(screenH * 0.46f);
     int itemGap = 58;
     const char* labels[MENU_ITEMS];
@@ -415,7 +509,7 @@ void GameEngine::drawMenu(int screenW, int screenH) const {
         }
     }
 
-    
+
     const char* info = TextFormat("Maze %d x %d    |    Enemy speed: %s    |    Time: %.0f s",
                                   d.cols, d.rows, d.enemySpeedLabel, d.timeLimit);
     int infoY = itemY + MENU_ITEMS * itemGap + 6;
@@ -423,8 +517,13 @@ void GameEngine::drawMenu(int screenW, int screenH) const {
 
     // scoreboard on the right when there is room
     if (screenW >= 1100) {
-        scoreboard.render(screenW - 310, (int)(screenH * 0.46f));
+        int boardY = (int)(screenH * 0.46f);
+        scoreboard.render(screenW - 310, boardY);
+        DrawText(TextFormat("%d scores saved in database", savedCount), screenW - 310, boardY + 160, 16, Theme::TextDim);
     }
+
+    const char* legend = "S = speed boost     I = immunity     brown = mud (slow)     bomb = lose a life     crates block the way";
+    DrawText(legend, (screenW - MeasureText(legend, 16)) / 2, screenH - 64, 16, Theme::TextMain);
 
     const char* hint = "UP / DOWN: select      LEFT / RIGHT or 1-2-3: difficulty      ENTER: confirm      F11: fullscreen";
     DrawText(hint, (screenW - MeasureText(hint, 16)) / 2, screenH - 36, 16, Theme::TextDim);
@@ -443,17 +542,16 @@ void GameEngine::render() const {
     EndDrawing();
 }
 
-
 void GameEngine::run() {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);       
-    InitWindow(START_WINDOW_W, START_WINDOW_H, "NavAlgator - AI Maze Escape");
+    InitWindow(START_WINDOW_W, START_WINDOW_H, "NavAIgator - AI Maze Escape");
     SetWindowMinSize(MIN_WINDOW_W, MIN_WINDOW_H);
     SetExitKey(KEY_NULL);                        
     SetTargetFPS(60);
 
     while (!quitRequested && !WindowShouldClose()) {
         float deltaTime = GetFrameTime();
-        if (deltaTime > 0.05f) deltaTime = 0.05f;   \
+        if (deltaTime > 0.05f) deltaTime = 0.05f;    
         update(deltaTime);
         render();
     }

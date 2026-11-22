@@ -7,6 +7,7 @@ Enemy::Enemy(int startRow, int startCol, int cellSize, float moveInterval) {
     col = startCol;
     this->cellSize = cellSize;
     this->moveInterval = moveInterval;
+    currentWait = moveInterval;
     moveTimer = 0.0f;
     frozen = false;
 }
@@ -15,38 +16,41 @@ void Enemy::reset(int startRow, int startCol) {
     row = startRow;
     col = startCol;
     moveTimer = 0.0f;
+    currentWait = moveInterval;
 }
-// BFS Module
 
-static bool bfsNextStep(const Grid& grid, int startRow, int startCol,
-                         int targetRow, int targetCol, int& outRow, int& outCol) {
+static bool dijkstraNextStep(const Grid& grid, int startRow, int startCol,
+                             int targetRow, int targetCol, int& outRow, int& outCol) {
+    const int INF = 1000000000;
     int rows = grid.getRows();
     int cols = grid.getCols();
 
-    bool** visited = new bool*[rows];
-    int** parentRow = new int*[rows];
+    int** best = new int*[rows];      
+    int** parentRow = new int*[rows];   
     int** parentCol = new int*[rows];
     for (int i = 0; i < rows; i++) {
-        visited[i] = new bool[cols];
+        best[i] = new int[cols];
         parentRow[i] = new int[cols];
         parentCol[i] = new int[cols];
         for (int j = 0; j < cols; j++) {
-            visited[i][j] = false;
+            best[i][j] = INF;
             parentRow[i][j] = -1;
             parentCol[i][j] = -1;
         }
     }
 
-    ManualQueue<Position> queue;
-    queue.push({startRow, startCol});
-    visited[startRow][startCol] = true;
+    ManualMinHeap heap;                 
+    best[startRow][startCol] = 0;
+    heap.push({startRow, startCol, 0});
 
     bool found = false;
     int dr[4] = {-1, 1, 0, 0};
     int dc[4] = {0, 0, -1, 1};
 
-    while (!queue.isEmpty() && !found) {
-        Position current = queue.pop();
+    while (!heap.isEmpty()) {
+        PQNode current = heap.popMin();             
+
+        if (current.dist > best[current.row][current.col]) continue;
 
         if (current.row == targetRow && current.col == targetCol) {
             found = true;
@@ -56,18 +60,21 @@ static bool bfsNextStep(const Grid& grid, int startRow, int startCol,
         for (int d = 0; d < 4; d++) {
             int nr = current.row + dr[d];
             int nc = current.col + dc[d];
+            if (!grid.isWalkable(nr, nc)) continue;
 
-            if (grid.isWalkable(nr, nc) && !visited[nr][nc]) {
-                visited[nr][nc] = true;
+            int newCost = current.dist + grid.moveCost(nr, nc);
+            if (newCost < best[nr][nc]) {           
+                best[nr][nc] = newCost;
                 parentRow[nr][nc] = current.row;
                 parentCol[nr][nc] = current.col;
-                queue.push({nr, nc});
+                heap.push({nr, nc, newCost});
             }
         }
     }
 
     bool result = false;
     if (found) {
+    
         int r = targetRow, c = targetCol;
         int prevR = r, prevC = c;
         while (!(r == startRow && c == startCol)) {
@@ -82,14 +89,12 @@ static bool bfsNextStep(const Grid& grid, int startRow, int startCol,
         outCol = prevC;
         result = true;
     }
-
-
     for (int i = 0; i < rows; i++) {
-        delete[] visited[i];
+        delete[] best[i];
         delete[] parentRow[i];
         delete[] parentCol[i];
     }
-    delete[] visited;
+    delete[] best;
     delete[] parentRow;
     delete[] parentCol;
 
@@ -97,20 +102,23 @@ static bool bfsNextStep(const Grid& grid, int startRow, int startCol,
 }
 
 void Enemy::update(const Grid& grid, const Player& player, float deltaTime) {
-    if (frozen) return;                     
+    if (frozen) return;                  
 
     moveTimer += deltaTime;
-    if (moveTimer < moveInterval) return;  
+    if (moveTimer < currentWait) return;  
     moveTimer = 0.0f;
 
     int nextRow, nextCol;
-    bool pathFound = bfsNextStep(grid, row, col, player.getRow(), player.getCol(), nextRow, nextCol);
+    bool pathFound = dijkstraNextStep(grid, row, col, player.getRow(), player.getCol(), nextRow, nextCol);
 
     if (pathFound) {
         row = nextRow;
         col = nextCol;
+
+        currentWait = moveInterval * grid.moveCost(row, col);
+    } else {
+        currentWait = moveInterval;
     }
-   
 }
 
 void Enemy::render() const {
@@ -120,11 +128,11 @@ void Enemy::render() const {
 
     Color body = frozen ? Fade(Theme::EnemyBody, 0.45f) : Theme::EnemyBody;
 
-    DrawCircleV(Vector2{cx + 2.0f, cy + 4.0f}, r, Fade(BLACK, 0.35f));   
+    DrawCircleV(Vector2{cx + 2.0f, cy + 4.0f}, r, Fade(BLACK, 0.35f));  
     DrawCircleV(Vector2{cx, cy}, r, body);
     DrawCircleLines((int)cx, (int)cy, r, Fade(BLACK, 0.6f));
 
-  
+
     float eyeR = r * 0.26f;
     Vector2 leftEye  = {cx - r * 0.38f, cy - r * 0.15f};
     Vector2 rightEye = {cx + r * 0.38f, cy - r * 0.15f};

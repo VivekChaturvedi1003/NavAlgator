@@ -4,7 +4,9 @@
 #include "Grid.h"
 #include "Player.h"
 #include "Enemy.h"
+#include "Bomb.h"
 #include "Scoreboard.h"
+#include "Database.h"
 
 enum GameState {
     MENU,
@@ -18,35 +20,47 @@ private:
     Grid grid;
     Player player;
     Enemy enemy;
-    Scoreboard scoreboard;
+    Bomb bomb;                
+    Scoreboard scoreboard;    
+    Database database;        
 
     GameState state;
     int cellSize;
-    int difficultyIndex;      // 0 = Easy, 1 = Medium, 2 = Hard
-    int menuSelection;        // 0 = Play, 1 = Difficulty, 2 = Quit
+    int difficultyIndex;      
+    int menuSelection;        
     bool quitRequested;
 
     float roundTimer;
     float roundTimeLimit;
-    float graceTimer;       
+    float graceTimer;         
     int startRow, startCol;
     const char* endMessage;
 
-public:
-    GameEngine(int cellSize = 40);
+    static constexpr int MAX_NAME_LENGTH = 12;
+    bool enteringName;
+    char nameBuffer[MAX_NAME_LENGTH + 1];
+    int nameLength;
+    float nameEntryDelay;     
+    int pendingScore;
+    int savedCount;           
 
-    void run();  
+public:
+    GameEngine(int cellSize = 40, const char* databaseFile = "navalgator.db");
+
+    void run();   
+
 private:
-    // game flow
     void update(float deltaTime);
     void updateMenu();
+    void updateNameEntry(float deltaTime);
+    void finishNameEntry(bool save);
+    void loadSavedScores();           
     void startGame();                 
-    void setupRound();               
+    void setupRound();                
     void respawnAfterHit();           
     void placeEnemyFarFrom(int row, int col);
+    void collectPowerUps();           
     void checkWinLose(bool swappedPlaces);
-
-    
     void render() const;
     void drawMenu(int screenW, int screenH) const;
     void drawGame(int screenW, int screenH) const;

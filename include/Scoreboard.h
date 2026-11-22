@@ -19,8 +19,8 @@ public:
     ~Scoreboard();
 
     void addScore(const std::string& name, int score);
-    void sortDescending();     // manual insertion sort, not std::sort
-    void render(int x, int y) const;  // draws top entries on screen via raylib
+    void sortDescending();     
+    void render(int x, int y) const;  
 };
 
 #endif

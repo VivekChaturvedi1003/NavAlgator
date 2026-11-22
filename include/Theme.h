@@ -4,7 +4,6 @@
 #include "raylib.h"
 #include <cmath>
 
-
 namespace Theme {
 
     inline const Color Background = {14, 16, 30, 255};
@@ -20,13 +19,17 @@ namespace Theme {
     inline const Color Crate      = {150, 90, 60, 255};
     inline const Color CrateEdge  = {90, 50, 30, 255};
     inline const Color Slow       = {160, 120, 60, 255};
+    inline const Color MudDark    = {110, 80, 40, 255};
+    inline const Color PowerSpeed = {255, 210, 60, 255};
+    inline const Color PowerShield = {80, 220, 255, 255};
+    inline const Color BombBody   = {30, 30, 40, 255};
+    inline const Color BombSpark  = {255, 150, 40, 255};
 
     inline const Color TextMain   = {235, 238, 250, 255};
     inline const Color TextDim    = {150, 158, 190, 255};
     inline const Color Gold       = {255, 205, 80, 255};
     inline const Color Danger     = {255, 90, 90, 255};
 
-   
     inline Color hsv(float hue, float saturation, float value) {
         hue = std::fmod(hue, 360.0f);
         if (hue < 0.0f) hue += 360.0f;
